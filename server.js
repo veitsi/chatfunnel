@@ -16,39 +16,45 @@ Storage.prototype.isEmpty = function(prop) {
     return typeof(this.get(prop)) === 'undefined';
 }
 var users = new Storage('users.txt');
-var actions = require('./actions');
+var actions = require("./actions.js");
 
 function handleMessage(req, res) {
     console.log('in handleMessage, actions');
     var messaging_events = req.body.entry[0].messaging;
     var stage;
     var action;
-    function nextStage(stage){
+
+    function nextStage(stage) {
         console.log(stage)
-            users.put(sender+'.stage',stage);
-            action=actions[users.get(sender+'.stage')];
-            console.dir(action);
-            if ('phrase' in action) {sendTextMessage(sender, action['phrase'])}
-            if ('delay' in action && 'nextStage' in action){setTimeout(nextStage,action.delay,action.nextStage)}
+        users.put(sender + '.stage', stage);
+        action = actions[users.get(sender + '.stage')];
+        console.dir(action);
+        if ('phrase' in action) {
+            sendTextMessage(sender, action['phrase']);
+            //sendButtons(sender);
+        }
+        if ('delay' in action && 'nextStage' in action) {
+            setTimeout(nextStage, action.delay, action.nextStage)
+        }
     }
     for (i = 0; i < messaging_events.length; i++) {
         event = req.body.entry[0].messaging[i];
         sender = event.sender.id;
         text = event.message.text;
-        
+
         if (event.message && event.message.text) {
             if (users.isEmpty(sender)) { //new user joined
                 console.log('new user joined ' + sender);
                 users.put(sender, {});
                 nextStage('start');
             }
-            else{
-                action=actions[users.get(sender+'.stage')];
-                if ('answers' in action && text in action.answers){
+            else {
+                action = actions[users.get(sender + '.stage')];
+                if ('answers' in action && text in action.answers) {
                     nextStage(action.answers[text]);
                 }
-                else{
-                  console.log(sender, "unrecognized answer");
+                else {
+                    console.log(sender, "unrecognized answer");
                 }
             }
             console.log(text, sender);
@@ -77,9 +83,50 @@ function verificationHandler(req, res) {
 }
 
 function sendTextMessage(sender, text) {
-    messageData = {
+    var messageData = {
         text: text
     }
+    request({
+        url: 'https://graph.facebook.com/v2.6/me/messages',
+        qs: {
+            access_token: token
+        },
+        method: 'POST',
+        json: {
+            recipient: {
+                id: sender
+            },
+            message: messageData,
+        }
+    }, function(error, response, body) {
+        if (error) {
+            console.log('Error sending messages: ', error)
+        }
+        else if (response.body.error) {
+            console.log('Error: ', response.body.error)
+        }
+    })
+}
+
+function sendButtons(sender) {
+    var messageData = {
+        "attachment": {
+            "type": "template",
+            "payload": {
+                "template_type": "button",
+                "text": "What do you want to do next?",
+                "buttons": [{
+                    "type": "web_url",
+                    "url": "https://petersapparel.parseapp.com",
+                    "title": "Show Website"
+                }, {
+                    "type": "postback",
+                    "title": "Start Chatting",
+                    "payload": "USER_DEFINED_PAYLOAD"
+                }]
+            }
+        }
+    };
     request({
         url: 'https://graph.facebook.com/v2.6/me/messages',
         qs: {
