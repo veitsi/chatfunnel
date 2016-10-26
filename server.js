@@ -23,26 +23,35 @@ function handleMessage(req, res) {
     var messaging_events = req.body.entry[0].messaging;
     var stage;
     var action;
+    var text;
+    var sender;
 
     function nextStage(stage) {
-        console.log(stage)
+        console.log(stage);
         users.put(sender + '.stage', stage);
         action = actions[users.get(sender + '.stage')];
         console.dir(action);
         if ('phrase' in action) {
             sendTextMessage(sender, action['phrase']);
-            //sendButtons(sender);
+        }
+        if ('answers' in action) {
+            sendButtons(sender);
         }
         if ('delay' in action && 'nextStage' in action) {
             setTimeout(nextStage, action.delay, action.nextStage)
         }
     }
-    for (i = 0; i < messaging_events.length; i++) {
+    for (var i = 0; i < messaging_events.length; i++) {
+        text = undefined;
         event = req.body.entry[0].messaging[i];
         sender = event.sender.id;
-        text = event.message.text;
+        if (event.postback) {
+            text = event.postback.payload;
+            console.log("Postback'+text+' received from: " + sender);
+        }
 
-        if (event.message && event.message.text) {
+        if (text || (event.message && event.message.text)) {
+            text = text || event.message.text;
             if (users.isEmpty(sender)) { //new user joined
                 console.log('new user joined ' + sender);
                 users.put(sender, {});
@@ -53,9 +62,7 @@ function handleMessage(req, res) {
                 if ('answers' in action && text in action.answers) {
                     nextStage(action.answers[text]);
                 }
-                else {
-                    console.log(sender, "unrecognized answer");
-                }
+                else {console.log(sender, "unrecognized answer");}
             }
             console.log(text, sender);
         }
@@ -116,13 +123,13 @@ function sendButtons(sender) {
                 "template_type": "button",
                 "text": "What do you want to do next?",
                 "buttons": [{
-                    "type": "web_url",
-                    "url": "https://petersapparel.parseapp.com",
-                    "title": "Show Website"
+                    "type": "postback",
+                    "title": "Yes, wonna discount",
+                    "payload": "yes"
                 }, {
                     "type": "postback",
-                    "title": "Start Chatting",
-                    "payload": "USER_DEFINED_PAYLOAD"
+                    "title": "No, I don't need this",
+                    "payload": "no"
                 }]
             }
         }
